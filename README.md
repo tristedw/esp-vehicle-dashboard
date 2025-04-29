@@ -1,6 +1,6 @@
 # ESP8266 WebSocket Dashboard
 
-An efficient and responsive real-time RPM dashboard powered by an ESP8266. Built with smooth needle animation, WebSocket communication, and smart optimizations like GZIP compression and heartbeat timeouts.
+An efficient, self-hosted real-time vehicle dashboard powered by an ESP8266. Designed with smooth needle animation using [CanvasGauges](https://canvas-gauges.com/), fast WebSocket communication, and optimizations like GZIP compression.
 
 ![{EEE25229-242E-4B6B-8B08-2189DF0232EC}](https://github.com/user-attachments/assets/68c6961a-06cf-4003-b665-8af1d1eaf239)
 
@@ -12,7 +12,8 @@ An efficient and responsive real-time RPM dashboard powered by an ESP8266. Built
 - Auto-reconnecting WebSocket client
 - GZIP compression for faster page loads
 - Heartbeat-based timeout system for connection health
-- Designed for automotive, sim rigs, or embedded displays
+- Fully self-hosted on the ESP8266 – no external server needed
+- Ideal for mounting a tablet in your car to monitor live engine data
 
 ## Hardware Requirements
 
