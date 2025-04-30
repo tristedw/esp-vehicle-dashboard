@@ -126,7 +126,6 @@ void loop() {
   static const int fuelMin = 0;
   static const int fuelMax = 100;
 
-  static unsigned long lastTurnSignalTime = 0;
   String turnSignal = "";
 
   if (millis() - lastTime > 80) {
@@ -177,7 +176,6 @@ void loop() {
       if (turnSignal != currentTurnSignal) {
         currentTurnSignal = turnSignal;  // Update current state
         Serial.println("Triggering " + command + " turn signal");
-        lastTurnSignalTime = millis();  // Record when the signal was last triggered
         ws.textAll("TURN:" + turnSignal);  // Send updated signal to all clients
       }
     } else {
