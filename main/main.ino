@@ -11,14 +11,15 @@ AsyncWebSocket ws("/ws");
 
 unsigned long clientTimeout = 30000;  // Timeout duration (in ms) for checking client activity
 unsigned long lastActivityTime = 0;
+String currentTurnSignal = "off";  // Global turn signal state
 
 void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, 
                       AwsEventType type, void *arg, uint8_t *data, size_t len) {
-  
+
   switch (type) {
     case WS_EVT_CONNECT:
       Serial.println(F("Client connected"));
-      client->text("RPM: 0");
+      client->text("TURN:" + currentTurnSignal); // Send saved turn signal state
       break;
 
     case WS_EVT_DISCONNECT:
@@ -37,11 +38,16 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 
         if (msg == "ping") {
           Serial.println(F("Ping received, sending Pong..."));
-          client->text("pong");  // Send pong back to the client
+          client->text("pong");
+        } else if (msg.startsWith("TURN:")) {
+          currentTurnSignal = msg.substring(5);  // Update global state
+          Serial.println("Turn signal updated to: " + currentTurnSignal);
+          ws.textAll("TURN:" + currentTurnSignal);  // Broadcast to all clients
         }
       }
       break;
     }
+
     default:
       break;
   }
@@ -120,6 +126,9 @@ void loop() {
   static const int fuelMin = 0;
   static const int fuelMax = 100;
 
+  static unsigned long lastTurnSignalTime = 0;
+  String turnSignal = "";
+
   if (millis() - lastTime > 80) {
     lastTime = millis();
 
@@ -138,17 +147,42 @@ void loop() {
     voltage = constrain(voltage, voltageMin, voltageMax);
     fuel = constrain(fuel, fuelMin, fuelMax);
 
+    // Send main data
     if (ws.count() > 0) {
       String combinedMessage = "RPM:" + String(rpm) +
-                               ";SPEED:" + String(speed) +
-                               ";WATERTEMP:" + String(waterTemp) +
-                               ";OILPRESSURE:" + String(oilPressure) +
-                               ";BATTVOLT:" + String(voltage / 10.0, 1) +
-                               ";FUEL:" + String(fuel);
+                              ";SPEED:" + String(speed) +
+                              ";WATERTEMP:" + String(waterTemp) +
+                              ";OILPRESSURE:" + String(oilPressure) +
+                              ";BATTVOLT:" + String(voltage / 10.0, 1) +
+                              ";FUEL:" + String(fuel);
+
       ws.textAll(combinedMessage);
     }
 
     yield();
+  }
+
+  // Read serial command
+  if (Serial.available()) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+
+    Serial.print(F("Serial command received: "));
+    Serial.println(command);
+
+    if (command == "left" || command == "right" || command == "hazard" || command == "off") {
+      turnSignal = command;
+      
+      // Only change the signal state if it's different from the current one
+      if (turnSignal != currentTurnSignal) {
+        currentTurnSignal = turnSignal;  // Update current state
+        Serial.println("Triggering " + command + " turn signal");
+        lastTurnSignalTime = millis();  // Record when the signal was last triggered
+        ws.textAll("TURN:" + turnSignal);  // Send updated signal to all clients
+      }
+    } else {
+      Serial.println(F("Unknown command"));
+    }
   }
 
   if (ESP.getFreeHeap() < 512) {

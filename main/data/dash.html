@@ -64,7 +64,7 @@
       justify-content: center;
       align-items: center;
       gap: 0px;
-      margin-left: -90px;
+      margin-left: -65px;
     }
   
     #center-cluster {
@@ -125,16 +125,64 @@
       align-items: center;
       z-index: 9999;
     }
-  
+
     #warning-message {
       color: white;
       font-size: 2rem;
       text-align: center;
       font-weight: bold;
     }
+
+    #turn-signals {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 100px;
+      margin-bottom: 30px;
+    }
+
+    .arrow {
+      width: 0;
+      height: 0;
+      border-top: 20px solid transparent;
+      border-bottom: 20px solid transparent;
+      opacity: 0.2;
+      transition: opacity 1s ease-out, filter 1s ease-out;
+    }
+
+    /* Left Arrow Shape */
+    .left-arrow {
+      border-right: 30px solid #0f0;
+    }
+
+    /* Right Arrow Shape */
+    .right-arrow {
+      border-left: 30px solid #0f0;
+    }
+
+    /* Blinking Animation */
+    @keyframes blink {
+      0%, 100% {
+        opacity: 0.2;
+        filter: brightness(1);
+      }
+      50% {
+        opacity: 1;
+        filter: brightness(2.5);
+      }
+    }
+
+    /* Active class triggers blink */
+    .arrow.active {
+      animation: blink 1s infinite;
+    }
   </style>
 </head>
 <body>
+  <div id="turn-signals">
+    <div class="arrow left-arrow"></div>
+    <div class="arrow right-arrow"></div>
+  </div>
   <div id="dashboard">
     <div id="top-row">
       <div id="center-cluster">
@@ -323,13 +371,17 @@
                 case "FUEL": latestValues.fuel = value; break;
               }
             });
-  
+
             document.getElementById('data').textContent =
               message.replace(/;/g, " | ").replace(/:/g, ": ");
   
             checkWarnings(latestTemp, latestOilPressure, latestVoltage);
+
           } else if (message === "pong") {
             console.log("Pong received from server");
+          }
+          else if (message.includes("TURN:")) {
+            updateTurnSignals(message.split(":")[1]);
           }
         } catch (e) {
           console.error("Message parse error:", e);
@@ -374,6 +426,41 @@
       } else {
         overlay.style.display = 'none';
       }
+    }
+
+    let lastTurnSignal = "";  // Store the last turn signal direction
+    let turnCount = 0;
+
+    function updateTurnSignals(direction) {
+      const left = document.querySelector(".left-arrow");
+      const right = document.querySelector(".right-arrow");
+
+      console.log("Turn triggered " + direction);
+
+      // Remove 'active' class from both arrows
+      left.classList.remove("active");
+      right.classList.remove("active");
+
+      // Add 'active' class based on the direction
+      if (direction === "left") {
+        left.classList.add("active");
+      } else if (direction === "right") {
+        right.classList.add("active");
+      } else if (direction === "hazard") {
+        left.classList.add("active");
+        right.classList.add("active");
+      }
+
+      // Send message only if the direction has changed
+      if (direction !== lastTurnSignal && turnCount > 0) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send("TURN:" + direction);
+          console.log(direction + " sent to server");
+          lastTurnSignal = direction;  // Update lastTurnSignal to the new direction
+        }
+      }
+
+      turnCount++;
     }
   
     function updateGauges() {
