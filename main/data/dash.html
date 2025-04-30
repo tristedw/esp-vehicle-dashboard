@@ -39,23 +39,19 @@
       background-color: #222;
       color: #fff;
       margin: 0;
-      padding: 20px;
-    }
-  
-    canvas,
-    .vertical-gauge,
-    .small-gauge,
-    .big-gauge {
-      margin: 20px;
       padding: 0;
-      display: block;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
-  
+
     #dashboard {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 20px;
+      padding: 20px; /* Retain original padding here */
     }
   
     #top-row {
@@ -119,21 +115,27 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 100%;
-      background-color: rgba(200, 0, 0, 0.15);
+      min-height: 40px; /* minimum height */
+      background-color: rgba(200, 0, 0, 0.4);
       display: none;
       justify-content: center;
       align-items: center;
       z-index: 9999;
+      padding: 5px 10px;
+      text-align: center;
+      pointer-events: none;
+      box-sizing: border-box;
     }
 
     #warning-message {
       color: white;
-      font-size: 2rem;
-      text-align: center;
+      font-size: 1.2rem;
       font-weight: bold;
+      line-height: 1.2;
+      max-width: 100%;
+      word-wrap: break-word;
     }
-
+    
     #turn-signals {
       display: flex;
       justify-content: center;
@@ -180,11 +182,11 @@
   </style>
 </head>
 <body>
-  <div id="turn-signals">
-    <div class="arrow left-arrow"></div>
-    <div class="arrow right-arrow"></div>
-  </div>
   <div id="dashboard">
+    <div id="turn-signals">
+      <div class="arrow left-arrow"></div>
+      <div class="arrow right-arrow"></div>
+    </div>
     <div id="top-row">
       <div id="center-cluster">
         <div id="left-vertical" class="vertical-gauge-left">
@@ -323,9 +325,8 @@
         data-value-int="3"
       ></canvas>
     </div>
-  </div>
-
     <div id="data">Waiting...</div>
+  </div>
 
     <div id="warning-overlay">
       <div id="warning-message"></div>
@@ -438,11 +439,15 @@
 
       console.log("Turn triggered " + direction);
 
-      // Remove 'active' class from both arrows
+      // Remove active class to reset animations
       left.classList.remove("active");
       right.classList.remove("active");
 
-      // Add 'active' class based on the direction
+      // Trigger reflow to reset animation
+      void left.offsetWidth;
+      void right.offsetWidth;
+
+      // Apply active classes based on direction
       if (direction === "left") {
         left.classList.add("active");
       } else if (direction === "right") {
@@ -452,12 +457,12 @@
         right.classList.add("active");
       }
 
-      // Send message only if the direction has changed
+      // Send WebSocket message if direction changed
       if (direction !== lastTurnSignal && turnCount > 0) {
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send("TURN:" + direction);
           console.log(direction + " sent to server");
-          lastTurnSignal = direction;  // Update lastTurnSignal to the new direction
+          lastTurnSignal = direction;
         }
       }
 
