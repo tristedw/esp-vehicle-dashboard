@@ -2,7 +2,7 @@
 
 An efficient, self-hosted real-time vehicle dashboard powered by an ESP8266. Designed with smooth needle animation using [CanvasGauges](https://canvas-gauges.com/), fast WebSocket communication, and optimizations like GZIP compression.
 
-![{EEE25229-242E-4B6B-8B08-2189DF0232EC}](https://github.com/user-attachments/assets/68c6961a-06cf-4003-b665-8af1d1eaf239)
+![gifdash](https://github.com/user-attachments/assets/6f4e13bb-aabf-4523-b9fb-a76fb0b08a5a)
 
 
 ## Features
