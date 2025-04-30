@@ -93,7 +93,7 @@ void loop() {
   static int waterTemp = 60;
   static int oilPressure = 0;
   static int voltage = 120;          // 12.0V x 10 to send as integer
-  static int ambientTemp = 20;
+  static int fuel = 20;
   static int direction = 1;
 
   static const int rpmStep = 100;
@@ -116,9 +116,9 @@ void loop() {
   static const int voltageMin = 100;   // 10.0V
   static const int voltageMax = 140;   // 14.0V
 
-  static const int ambientStep = 1;
-  static const int ambientMin = -10;
-  static const int ambientMax = 40;
+  static const int fuelStep = 1;
+  static const int fuelMin = 0;
+  static const int fuelMax = 100;
 
   if (millis() - lastTime > 80) {
     lastTime = millis();
@@ -128,7 +128,7 @@ void loop() {
     waterTemp += direction * tempStep;
     oilPressure += direction * pressureStep;
     voltage += direction * voltageStep;
-    ambientTemp += direction * ambientStep;
+    fuel += direction * fuelStep;
 
     if (rpm >= rpmMax || rpm <= rpmMin) direction = -direction;
 
@@ -136,7 +136,7 @@ void loop() {
     waterTemp = constrain(waterTemp, tempMin, tempMax);
     oilPressure = constrain(oilPressure, pressureMin, pressureMax);
     voltage = constrain(voltage, voltageMin, voltageMax);
-    ambientTemp = constrain(ambientTemp, ambientMin, ambientMax);
+    fuel = constrain(fuel, fuelMin, fuelMax);
 
     if (ws.count() > 0) {
       String combinedMessage = "RPM:" + String(rpm) +
@@ -144,7 +144,7 @@ void loop() {
                                ";WATERTEMP:" + String(waterTemp) +
                                ";OILPRESSURE:" + String(oilPressure) +
                                ";BATTVOLT:" + String(voltage / 10.0, 1) +
-                               ";AMBIENTTEMP:" + String(ambientTemp);
+                               ";FUEL:" + String(fuel);
       ws.textAll(combinedMessage);
     }
 

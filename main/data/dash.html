@@ -96,8 +96,8 @@
     }
   
     .vertical-gauge-left {
-      width: 80px;
-      height: 200px;
+      width: 90px;
+      height: 250px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -105,8 +105,8 @@
     }
 
     .vertical-gauge-right {
-      width: 80px;
-      height: 200px;
+      width: 90px;
+      height: 250px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -139,41 +139,53 @@
     <div id="top-row">
       <div id="center-cluster">
         <div id="left-vertical" class="vertical-gauge-left">
-          <canvas id="gauge-ambient" class="small-gauge"
+          <canvas id="gauge-fuel" class="small-gauge"
             data-type="linear-gauge"
-            data-units="°C"
-            data-min-value="-10"
-            data-max-value="50"
-            data-major-ticks="[-10,0,10,20,30,40,50]"
-            data-highlights='[{"from":35,"to":50,"color":"#f03e3e"}]'
-            data-value="0"
-            data-color-plate="#222"
-            data-color-major-ticks="#fff"
+            data-units="Fuel"
+            data-min-value="0"
+            data-max-value="100"
+            data-major-ticks="[0,25,50,75,100]"
+            data-highlights='[
+              {"from":0,"to":10,"color":"#f03e3e"},
+              {"from":10,"to":100,"color":"#a5a3a3"}]'
+            data-value="10"
+            data-color-plate="transparent"
+            data-color-major-ticks="transparent"
+            data-color-minor-ticks="transparent"
             data-color-numbers="#fff"
-            data-color-needle="#fff"
-            data-color-needle-end="#fff"
+            data-border-shadow-width="0"
+            data-borders="false"
+            data-bar-begin-circle="false"
+            data-bar-stroke-width="8"
+            data-animation-rule="linear"
+            data-animation-duration="750"
+            data-value-dec="0"
+            data-value-int="3"
           ></canvas>
         </div>
-
+  
         <canvas id="gauge-rpm" class="big-gauge"
           data-type="radial-gauge"
-          data-units="RPM"
+          data-units="rpm"
           data-min-value="0"
-          data-max-value="6000"
-          data-major-ticks="[0,1000,2000,3000,4000,5000,6000]"
+          data-max-value="7000"
+          data-major-ticks="[0,1000,2000,3000,4000,5000,6000,7000]"
           data-highlights='[
-            {"from":0,"to":3000,"color":"#A4A4A4"},
-            {"from":3000,"to":4500,"color":"#FFDD00"},
-            {"from":4500,"to":6000,"color":"#F03E3E"}
-          ]'
+            {"from":0,"to":5000,"color":"#A4A4A4"},
+            {"from":5000,"to":6000,"color":"#FFDD00"},
+            {"from":6000,"to":7000,"color":"#F03E3E"}]'
           data-color-plate="#222"
           data-color-major-ticks="#fff"
           data-color-numbers="#fff"
           data-color-needle="#fff"
           data-color-needle-end="#fff"
           data-value="0"
+          data-animation-rule="linear"
+          data-animation-duration="750"
+          data-value-dec="0"
+          data-value-int="4"
         ></canvas>
-
+  
         <canvas id="gauge-speed" class="big-gauge"
           data-type="radial-gauge"
           data-units="km/h"
@@ -182,16 +194,19 @@
           data-major-ticks="[0,20,40,60,80,100,120,140,160,180,200,220]"
           data-highlights='[
             {"from":0,"to":160,"color":"#A4A4A4"},
-            {"from":160,"to":220,"color":"rgba(200,50,50,0.75)"}
-          ]'
+            {"from":160,"to":220,"color":"rgba(200,50,50,0.75")}]'
           data-color-plate="#222"
           data-color-major-ticks="#fff"
           data-color-numbers="#fff"
           data-color-needle="#fff"
           data-color-needle-end="#fff"
           data-value="0"
+          data-animation-rule="linear"
+          data-animation-duration="750"
+          data-value-dec="0"
+          data-value-int="4"
         ></canvas>
-
+  
         <div id="right-vertical" class="vertical-gauge-right">
           <canvas id="gauge-battery" class="small-gauge"
             data-type="linear-gauge"
@@ -202,17 +217,23 @@
             data-highlights='[
               {"from":10,"to":11.5,"color":"#f03e3e"},
               {"from":11.5,"to":13.5,"color":"#A4A4A4"},
-              {"from":13.5,"to":15,"color":"#FFDD00"}
-            ]'
+              {"from":13.5,"to":15,"color":"#FFDD00"}]'
             data-value="12"
-            data-color-plate="#222"
-            data-color-major-ticks="#fff"
+            data-color-plate="transparent"
+            data-color-major-ticks="transparent"
+            data-color-minor-ticks="transparent"
             data-color-numbers="#fff"
+            data-border-shadow-width="0"
+            data-borders="false"
+            data-bar-begin-circle="false"
+            data-bar-stroke-width="8"
+            data-animation-rule="linear"
+            data-animation-duration="750"
           ></canvas>
         </div>
       </div>
     </div>
-
+  
     <div id="bottom-row">
       <canvas id="gauge-temp" class="small-gauge"
         data-type="radial-gauge"
@@ -222,14 +243,17 @@
         data-major-ticks="[-10,0,40,80,100,120]"
         data-highlights='[
           {"from":-10,"to":80,"color":"#A4A4A4"},
-          {"from":80,"to":120,"color":"#F03E3E"}
-        ]'
+          {"from":80,"to":120,"color":"#F03E3E"}]'
         data-value="0"
         data-color-plate="#222"
         data-color-major-ticks="#fff"
         data-color-numbers="#fff"
+        data-animation-rule="linear"
+        data-animation-duration="750"
+        data-value-dec="0"
+        data-value-int="3"
       ></canvas>
-
+  
       <canvas id="gauge-oil" class="small-gauge"
         data-type="radial-gauge"
         data-units="psi"
@@ -239,14 +263,18 @@
         data-highlights='[
           {"from":0,"to":15,"color":"#F03E3E"},
           {"from":15,"to":60,"color":"#A4A4A4"},
-          {"from":60,"to":100,"color":"#FFDD00"}
-        ]'
+          {"from":60,"to":100,"color":"#FFDD00"}]'
         data-value="0"
         data-color-plate="#222"
         data-color-major-ticks="#fff"
         data-color-numbers="#fff"
+        data-animation-rule="linear"
+        data-animation-duration="750"
+        data-value-dec="0"
+        data-value-int="3"
       ></canvas>
     </div>
+  </div>
 
     <div id="data">Waiting...</div>
 
@@ -263,7 +291,7 @@
       watertemp: 0,
       oilpressure: 0,
       battvolt: 0,
-      ambienttemp: 0
+      fuel: 0
     };
   
     let latestTemp = 0;
@@ -290,9 +318,9 @@
                 case "RPM": latestValues.rpm = value; break;
                 case "SPEED": latestValues.speed = value; break;
                 case "WATERTEMP": latestValues.watertemp = value; latestTemp = value; break;
-                case "OILPRESSURE": latestValues.oilpressure = value; latestOilPressure = value; break;
+                case "OILPRESSURE": latestValues.oilpressure = value; latestOilPressure = value;break;
                 case "BATTVOLT": latestValues.battvolt = value; latestVoltage = value; break;
-                case "AMBIENTTEMP": latestValues.ambienttemp = value; break;
+                case "FUEL": latestValues.fuel = value; break;
               }
             });
   
@@ -355,7 +383,7 @@
         document.gauges.get("gauge-temp").value = latestValues.watertemp;
         document.gauges.get("gauge-oil").value = latestValues.oilpressure;
         document.gauges.get("gauge-battery").value = latestValues.battvolt;
-        document.gauges.get("gauge-ambient").value = latestValues.ambienttemp;
+        document.gauges.get("gauge-fuel").value = latestValues.fuel;
       }
   
       requestAnimationFrame(updateGauges);
@@ -369,7 +397,7 @@
         ws.send("ping");
         console.log("Ping sent to server");
       }
-    }, 10000);
+    }, 30000);
   </script>
 </body>
 </html>
