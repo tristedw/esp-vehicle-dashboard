@@ -59,11 +59,13 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 
   switch (type) {
     case WS_EVT_CONNECT:
-      Serial.println(F("Client connected"));
+      Serial.print(F("Client connected. ID: "));
+      Serial.println(client->id());
       client->text("TURN:" + currentTurnSignal);
       break;
     case WS_EVT_DISCONNECT:
-      Serial.println(F("Client disconnected"));
+      Serial.print(F("Client disconnected. ID: "));
+      Serial.println(client->id());
       break;
     case WS_EVT_DATA: {
       if (!arg || !data) {
@@ -152,7 +154,7 @@ void loop() {
   static const int voltageStep = 1, voltageMin = 100, voltageMax = 140;
   static const int fuelStep = 1, fuelMin = 0, fuelMax = 100;
 
-  if (millis() - lastTime > 80) {
+  if (millis() - lastTime > 100) {
     lastTime = millis();
 
     rpm += direction * rpmStep;
@@ -177,14 +179,35 @@ void loop() {
 
     smoothedTemp = smoothedTemp * (1.0 - tempAlpha) + temp * tempAlpha;
 
+    String msg = "RPM:" + String(rpm) +
+                ";SPEED:" + String(speed) +
+                ";WATERTEMP:" + String((int)smoothedTemp) +
+                ";OILPRESSURE:" + String(oilPressure) +
+                ";BATTVOLT:" + String(voltage / 10.0, 1) +
+                ";FUEL:" + String(fuel);
     if (ws.count() > 0) {
-      String msg = "RPM:" + String(rpm) +
-                  ";SPEED:" + String(speed) +
-                  ";WATERTEMP:" + String((int)smoothedTemp) +
-                  ";OILPRESSURE:" + String(oilPressure) +
-                  ";BATTVOLT:" + String(voltage / 10.0, 1) +
-                  ";FUEL:" + String(fuel);
-      ws.textAll(msg);
+      if (msg.length() > 0) {  // Ensure the message is not empty
+        Serial.println(F("Broadcasting message to WebSocket clients:"));
+        Serial.println(msg);
+    
+        // Iterate through all connected clients
+        for (AsyncWebSocketClient &client : ws.getClients()) {
+          Serial.print(F("Client ID: "));
+          Serial.print(client.id());
+          Serial.print(F(", Status: "));
+          Serial.println(client.status());  // Log the client's status
+    
+          if (client.status() == WS_CONNECTED) {
+            client.text(msg);
+          } else {
+            Serial.println(F("Skipping disconnected client."));
+          }
+        }
+      } else {
+        Serial.println(F("Warning: Attempted to send an empty message to WebSocket clients."));
+      }
+    } else {
+      Serial.println(F("No WebSocket clients connected. Message not sent."));
     }
 
     yield();
