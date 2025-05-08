@@ -1,6 +1,6 @@
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <ESPAsyncWebServer.h>
-#include <ESPAsyncTCP.h>
+#include <AsyncTCP.h>
 #include <LittleFS.h>
 
 // WiFi and server setup
@@ -15,22 +15,65 @@ unsigned long lastActivityTime = 0;
 String currentTurnSignal = "off";
 
 // Thermistor settings
-const int analogPin = A0;
-const float Vref = 3.3, R_fixed = 2000.0;
+const int analogPin = 34;
+const float Vref = 3.3, R_fixed = 2200.0;
 const float resistanceTable[] = {7000, 5000, 3500, 2000, 1300, 900, 650, 470, 350, 270, 200, 150};
 const float temperatureTable[] = {-10, 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
 const int tableSize = sizeof(resistanceTable) / sizeof(resistanceTable[0]);
-float smoothedTemp = 60.0;  
-const float tempAlpha = 0.1;  // Smoothing factor (0.0 - 1.0)
+float smoothedTemp = 20.0;
+const float tempAlpha = 0.1;
+
+// Fuel sensor settings
+const int fuelAnalogPin = 35; // Define the analog pin for the fuel sensor
+float smoothedFuel = 50.0; // Initial reasonable guess for fuel level
+const float fuelAlpha = 0.1;
+
+// Calibration table for fuel sensor
+const int numPoints = 5;
+float voltages[numPoints] = {0.00, 0.07, 0.30, 0.60, 0.85};
+float percentages[numPoints] = {0, 25, 50, 75, 100};
+
+// Resistance and temperature table for the water temperature sensor
+float interpolate(float voltage) {
+  if (voltage <= voltages[0]) return percentages[0];
+  if (voltage >= voltages[numPoints - 1]) return percentages[numPoints - 1];
+
+  for (int i = 0; i < numPoints - 1; i++) {
+    if (voltage >= voltages[i] && voltage <= voltages[i + 1]) {
+      float rangeV = voltages[i + 1] - voltages[i];
+      float rangeP = percentages[i + 1] - percentages[i];
+      float fraction = (voltage - voltages[i]) / rangeV;
+      return percentages[i] + fraction * rangeP;
+    }
+  }
+
+  return 0; // fallback
+}
+
+float getFuelLevel() {
+  int rawADC = analogRead(fuelAnalogPin);
+  if (rawADC < 0) {
+    Serial.println(F("Error: Failed to read fuel analog pin"));
+    return -999.0;
+  }
+
+  float voltage = rawADC * (Vref / 4095.0);
+  if (voltage <= 0 || voltage >= Vref) {
+    Serial.println(F("Error: Fuel voltage out of range or sensor disconnected"));
+    return -999.0;
+  }
+
+  return interpolate(voltage);
+}
 
 float getWaterTemp() {
   int rawADC = analogRead(analogPin);
-  if (rawADC == -1) {
+  if (rawADC < 0) {
     Serial.println(F("Error: Failed to read analog pin"));
     return -999.0;
   }
 
-  float voltage = rawADC * (Vref / 1024.0);
+  float voltage = rawADC * (Vref / 5095.0);
   if (voltage <= 0 || voltage >= Vref) {
     Serial.println(F("Error: Voltage out of range or sensor disconnected"));
     return -999.0;
@@ -97,7 +140,7 @@ void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(19200);
 
   if (!LittleFS.begin()) {
     Serial.println("Error: Failed to mount LittleFS");
@@ -106,7 +149,6 @@ void setup() {
 
   WiFi.mode(WIFI_AP);
   WiFi.softAP(ssid, password);
-  WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
   if (WiFi.softAPIP() == IPAddress(0, 0, 0, 0)) {
     Serial.println(F("WiFi AP setup failed!"));
@@ -152,7 +194,6 @@ void loop() {
   static const int speedStep = 1, speedMax = 240, speedMin = 0;
   static const int pressureStep = 3, pressureMin = 0, pressureMax = 80;
   static const int voltageStep = 1, voltageMin = 100, voltageMax = 140;
-  static const int fuelStep = 1, fuelMin = 0, fuelMax = 100;
 
   if (millis() - lastTime > 100) {
     lastTime = millis();
@@ -161,7 +202,6 @@ void loop() {
     speed += direction * speedStep;
     oilPressure += direction * pressureStep;
     voltage += direction * voltageStep;
-    fuel += direction * fuelStep;
 
     if (rpm >= rpmMax || rpm <= rpmMin) direction = -direction;
 
@@ -169,7 +209,6 @@ void loop() {
     speed = constrain(speed, speedMin, speedMax);
     oilPressure = constrain(oilPressure, pressureMin, pressureMax);
     voltage = constrain(voltage, voltageMin, voltageMax);
-    fuel = constrain(fuel, fuelMin, fuelMax);
 
     float temp = getWaterTemp();
     if (temp == -999.0) {
@@ -177,30 +216,28 @@ void loop() {
       temp = smoothedTemp;  // Use last known good value
     }
 
+    float fuel = getFuelLevel();
+    if (fuel == -999.0) {
+      Serial.println(F("Warning: Invalid fuel level value"));
+      fuel = smoothedFuel;
+    }
+
+    smoothedFuel = smoothedFuel * (1.0 - fuelAlpha) + fuel * fuelAlpha;
     smoothedTemp = smoothedTemp * (1.0 - tempAlpha) + temp * tempAlpha;
 
-    String msg = "RPM:" + String(rpm) +
-                ";SPEED:" + String(speed) +
-                ";WATERTEMP:" + String((int)smoothedTemp) +
-                ";OILPRESSURE:" + String(oilPressure) +
-                ";BATTVOLT:" + String(voltage / 10.0, 1) +
-                ";FUEL:" + String(fuel);
+    char msg[256];
+    snprintf(msg, sizeof(msg),
+             "RPM:%d;SPEED:%d;WATERTEMP:%d;OILPRESSURE:%d;BATTVOLT:%.1f;FUEL:%d",
+             rpm, speed, (int)smoothedTemp, oilPressure, voltage / 10.0, (int)smoothedFuel);
+
     if (ws.count() > 0) {
-      if (msg.length() > 0) {  // Ensure the message is not empty
-        Serial.println(F("Broadcasting message to WebSocket clients:"));
+      if (strlen(msg) > 0) {  // Ensure the message is not empty
         Serial.println(msg);
-    
+
         // Iterate through all connected clients
         for (AsyncWebSocketClient &client : ws.getClients()) {
-          Serial.print(F("Client ID: "));
-          Serial.print(client.id());
-          Serial.print(F(", Status: "));
-          Serial.println(client.status());  // Log the client's status
-    
           if (client.status() == WS_CONNECTED) {
             client.text(msg);
-          } else {
-            Serial.println(F("Skipping disconnected client."));
           }
         }
       } else {
