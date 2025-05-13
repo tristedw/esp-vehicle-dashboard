@@ -334,166 +334,183 @@
   </div>
 
   <script>
-    let ws;
-    let latestValues = {
-      rpm: 0,
-      speed: 0,
-      watertemp: 0,
-      oilpressure: 0,
-      battvolt: 0,
-      fuel: 0
+  let ws;
+  let reconnectDelay = 1000;
+  let reconnectTimer = null;
+  let lastUpdate = Date.now();
+  let latestValues = {
+    rpm: 0,
+    speed: 0,
+    watertemp: 0,
+    oilpressure: 0,
+    battvolt: 0,
+    fuel: 0
+  };
+
+  let displayedValues = {
+  rpm: 0,
+  speed: 0,
+  watertemp: 0,
+  oilpressure: 0,
+  battvolt: 0,
+  fuel: 0
+  };
+  const lerpAlpha = 0.5;
+
+  // Store only the latest dashboard message to avoid queue/lag
+  let latestDashboardMessage = null;
+
+  function connectWebSocket() {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    ws = new WebSocket('ws://' + location.hostname + '/ws');
+    ws.onopen = () => {
+      document.getElementById('data').textContent = "Connected to WebSocket!";
+      reconnectDelay = 1000; // Reset delay on successful connect
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
     };
+    ws.onmessage = (event) => {
+      const message = event.data.trim();
+      if (message.startsWith("RPM:")) {
+        // Instead of parsing immediately, store the latest message
+        latestDashboardMessage = message;
+      } else if (message === "pong") {
+        // Pong received
+      } else if (message.startsWith("TURN:")) {
+        updateTurnSignals(message.split(":")[1]);
+      }
+    };
+    ws.onclose = () => {
+      document.getElementById('data').textContent = "WebSocket disconnected. Retrying...";
+      scheduleReconnect();
+    };
+    ws.onerror = () => {
+      ws.close();
+    };
+  }
 
-    let latestTemp = 0;
-    let latestOilPressure = 0;
-    let latestVoltage = 0;
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      reconnectDelay = Math.min(reconnectDelay * 2, 10000); // Exponential backoff up to 10s
+      connectWebSocket();
+    }, reconnectDelay);
+  }
 
-    function connectWebSocket() {
-      ws = new WebSocket('ws://' + location.hostname + '/ws');
+  function checkWarnings(temp, pressure, voltage) {
+    const overlay = document.getElementById('warning-overlay');
+    const message = document.getElementById('warning-message');
+    let warningMessage = "";
+    if (pressure < 15) warningMessage += `<strong>Oil Pressure Low:</strong> ${pressure.toFixed(1)} PSI<br>`;
+    if (temp > 110) warningMessage += `<strong>Water Temp High:</strong> ${temp.toFixed(1)} °C<br>`;
+    if (voltage < 11) warningMessage += `<strong>Low Voltage:</strong> ${voltage.toFixed(1)} V`;
+    if (warningMessage) {
+      overlay.style.display = 'flex';
+      message.innerHTML = warningMessage;
+    } else {
+      overlay.style.display = 'none';
+    }
+  }
 
-      ws.onopen = () => {
-        console.log("WebSocket connection opened");
-        document.getElementById('data').textContent = "Connected to WebSocket!";
-      };
+  function updateTurnSignals(direction) {
+    const left = document.querySelector(".left-arrow");
+    const right = document.querySelector(".right-arrow");
+    left.classList.remove("active");
+    right.classList.remove("active");
+    void left.offsetWidth; void right.offsetWidth;
+    if (direction === "left") left.classList.add("active");
+    else if (direction === "right") right.classList.add("active");
+    else if (direction === "hazard") { left.classList.add("active"); right.classList.add("active"); }
+  }
 
-      ws.onmessage = (event) => {
-        try {
-          const message = event.data.trim();
-          console.log("Message received:", message);
-
-          if (message.includes("RPM:")) {
-            const parts = message.split(";");
-
-            parts.forEach(part => {
-              const [key, rawValue] = part.split(":").map(s => s.trim());
-              const value = parseFloat(rawValue);
-              if (isNaN(value)) return;
-
-              switch (key) {
-                case "RPM": latestValues.rpm = value; break;
-                case "SPEED": latestValues.speed = value; break;
-                case "WATERTEMP": latestValues.watertemp = value; latestTemp = value; break;
-                case "OILPRESSURE": latestValues.oilpressure = value; latestOilPressure = value; break;
-                case "BATTVOLT": latestValues.battvolt = value; latestVoltage = value; break;
-                case "FUEL": latestValues.fuel = value; break;
-              }
-            });
-
-            document.getElementById('data').textContent =
-              message.replace(/;/g, " | ").replace(/:/g, ": ");
-
-            checkWarnings(latestTemp, latestOilPressure, latestVoltage);
-
-          } else if (message === "pong") {
-            console.log("Pong received from server");
-          } else if (message.includes("TURN:")) {
-            updateTurnSignals(message.split(":")[1]);
-          }
-        } catch (e) {
-          console.error("Message parse error:", e);
+  // Gauge update loop
+  setInterval(() => {
+    // Process only the latest dashboard message, drop any backlog
+    if (latestDashboardMessage) {
+      const message = latestDashboardMessage;
+      latestDashboardMessage = null;
+      const parts = message.split(";");
+      parts.forEach(part => {
+        const [key, rawValue] = part.split(":").map(s => s.trim());
+        const value = parseFloat(rawValue);
+        if (isNaN(value)) return;
+        switch (key) {
+          case "RPM": latestValues.rpm = value; break;
+          case "SPEED": latestValues.speed = value; break;
+          case "WATERTEMP": latestValues.watertemp = value; break;
+          case "OILPRESSURE": latestValues.oilpressure = value; break;
+          case "BATTVOLT": latestValues.battvolt = value; break;
+          case "FUEL": latestValues.fuel = value; break;
         }
-      };
-
-      ws.onclose = () => {
-        console.log("WebSocket closed, retrying...");
-        document.getElementById('data').textContent = "WebSocket disconnected. Retrying...";
-        setTimeout(connectWebSocket, 1000);
-      };
-
-      ws.onerror = (err) => {
-        console.error("WebSocket error:", err);
-        ws.close();
-      };
+      });
+      document.getElementById('data').textContent =
+        message.replace(/;/g, " | ").replace(/:/g, ": ");
+      lastUpdate = Date.now();
+      checkWarnings(latestValues.watertemp, latestValues.oilpressure, latestValues.battvolt);
     }
 
-    function checkWarnings(temp, pressure, voltage) {
-      const overlay = document.getElementById('warning-overlay');
-      const message = document.getElementById('warning-message');
-      const highTemp = temp > 110;
-      const lowOil = pressure < 15;
-      const lowVoltage = voltage < 11;
-
-      let warningMessage = "";
-
-      if (lowOil) {
-        warningMessage += `<strong>Oil Pressure Low:</strong> ${pressure.toFixed(1)} PSI<br>`;
+    if (document.gauges) {
+      // Lerp displayed values toward latest values
+      for (const key in displayedValues) {
+        displayedValues[key] += (latestValues[key] - displayedValues[key]) * lerpAlpha;
       }
-      if (highTemp) {
-        warningMessage += `<strong>Water Temp High:</strong> ${temp.toFixed(1)} °C<br>`;
+      const rpmGauge = document.gauges.get("gauge-rpm");
+      const speedGauge = document.gauges.get("gauge-speed");
+      const tempGauge = document.gauges.get("gauge-temp");
+      const oilGauge = document.gauges.get("gauge-oil");
+      const batteryGauge = document.gauges.get("gauge-battery");
+      const fuelGauge = document.gauges.get("gauge-fuel");
+      if (rpmGauge) {
+        rpmGauge.options.animation = false;
+        rpmGauge.value = displayedValues.rpm;
+        rpmGauge.draw();
       }
-      if (lowVoltage) {
-        warningMessage += `<strong>Low Voltage:</strong> ${voltage.toFixed(1)} V`;
+      if (speedGauge) {
+        speedGauge.options.animation = false;
+        speedGauge.value = displayedValues.speed;
+        speedGauge.draw();
       }
-
-      if (lowOil || highTemp || lowVoltage) {
-        overlay.style.display = 'flex';
-        message.innerHTML = warningMessage;
-      } else {
-        overlay.style.display = 'none';
+      if (tempGauge) {
+        tempGauge.options.animation = false;
+        tempGauge.value = displayedValues.watertemp;
+        tempGauge.draw();
+      }
+      if (oilGauge) {
+        oilGauge.options.animation = false;
+        oilGauge.value = displayedValues.oilpressure;
+        oilGauge.draw();
+      }
+      if (batteryGauge) {
+        batteryGauge.options.animation = false;
+        batteryGauge.value = displayedValues.battvolt;
+        batteryGauge.draw();
+      }
+      if (fuelGauge) {
+        fuelGauge.options.animation = false;
+        fuelGauge.value = displayedValues.fuel;
+        fuelGauge.draw();
       }
     }
-
-    let lastTurnSignal = "";  // Store the last turn signal direction
-    let turnCount = 0;
-
-    function updateTurnSignals(direction) {
-      const left = document.querySelector(".left-arrow");
-      const right = document.querySelector(".right-arrow");
-
-      console.log("Turn triggered:", direction);
-
-      left.classList.remove("active");
-      right.classList.remove("active");
-
-      void left.offsetWidth;
-      void right.offsetWidth;
-
-      if (direction === "left") {
-        left.classList.add("active");
-      } else if (direction === "right") {
-        right.classList.add("active");
-      } else if (direction === "hazard") {
-        left.classList.add("active");
-        right.classList.add("active");
-      }
-
-      if (direction !== lastTurnSignal && turnCount > 0) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send("TURN:" + direction);
-          console.log(direction + " sent to server");
-          lastTurnSignal = direction;
-        }
-      }
-
-      turnCount++;
+    // Data timeout warning
+    if (Date.now() - lastUpdate > 2000) {
+      document.getElementById('data').textContent = "No data received!";
+      document.getElementById('warning-overlay').style.display = 'flex';
+      document.getElementById('warning-message').innerHTML = "<strong>No data received from ESP!</strong>";
     }
+  }, 40);
 
-    connectWebSocket();
+  // WebSocket keepalive
+  setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send("ping");
+    }
+  }, 30000);
 
-    setInterval(() => {
-      if (document.gauges) {
-        const rpmGauge = document.gauges.get("gauge-rpm");
-        const speedGauge = document.gauges.get("gauge-speed");
-        const tempGauge = document.gauges.get("gauge-temp");
-        const oilGauge = document.gauges.get("gauge-oil");
-        const batteryGauge = document.gauges.get("gauge-battery");
-        const fuelGauge = document.gauges.get("gauge-fuel");
-
-        if (rpmGauge) rpmGauge.value = latestValues.rpm;
-        if (speedGauge) speedGauge.value = latestValues.speed;
-        if (tempGauge) tempGauge.value = latestValues.watertemp;
-        if (oilGauge) oilGauge.value = latestValues.oilpressure;
-        if (batteryGauge) batteryGauge.value = latestValues.battvolt;
-        if (fuelGauge) fuelGauge.value = latestValues.fuel;
-      }
-    }, 150);
-
-    setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send("ping");
-        console.log("Ping sent to server");
-      }
-    }, 30000);
+  // Start connection
+  connectWebSocket();
   </script>
 </body>
 </html>
