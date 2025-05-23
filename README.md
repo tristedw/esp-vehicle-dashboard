@@ -1,6 +1,6 @@
 # ESP32 WebSocket Dashboard
 
-An efficient, self-hosted real-time vehicle dashboard powered by an ESP8266. Designed with smooth needle animation using [CanvasGauges](https://canvas-gauges.com/), fast WebSocket communication, and optimizations like GZIP compression.
+An efficient, self-hosted real-time vehicle dashboard powered by an ESP32. Designed with smooth needle animation using [CanvasGauges](https://canvas-gauges.com/), fast WebSocket communication, and optimizations like GZIP compression.
 
 ![dashgif](https://github.com/user-attachments/assets/c9d0ad6e-0117-4890-9a22-09e2b994efaf)
 
