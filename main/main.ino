@@ -3,7 +3,7 @@
 #include <AsyncTCP.h>
 #include <LittleFS.h>
 
-const int loopTickSpeed = 60;
+const int loopTickSpeed = 65;
 
 // WiFi and server setup
 const char* ssid = "ESP-Dashboard";
@@ -14,7 +14,8 @@ AsyncWebSocket ws("/ws");
 // Turn signal & client activity
 unsigned long clientTimeout = 30000;
 unsigned long lastActivityTime = 0;
-String currentTurnSignal = "off";
+// Replace String with char arrays for turn signal
+char currentTurnSignal[8] = "off";
 
 // Thermistor settings
 const int analogPin = 34;
@@ -76,19 +77,32 @@ float getWaterTemp() {
 void onWebSocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
                       AwsEventType type, void *arg, uint8_t *data, size_t len) {
   switch (type) {
-    case WS_EVT_CONNECT:
-      client->text("TURN:" + currentTurnSignal);
+    case WS_EVT_CONNECT: {
+      char msg[16];
+      snprintf(msg, sizeof(msg), "TURN:%s", currentTurnSignal);
+      client->text(msg);
       break;
+    }
+    case WS_EVT_DISCONNECT: {
+      // Optionally log or handle disconnects
+      break;
+    }
     case WS_EVT_DATA: {
       AwsFrameInfo *info = (AwsFrameInfo*)arg;
-      if (info->opcode == WS_TEXT) {
-        String msg;
-        for (size_t i = 0; i < len; i++) msg += (char)data[i];
-        if (msg == "ping") {
+      if (info->opcode == WS_TEXT && len < 32) {
+        char msg[32] = {0};
+        size_t copyLen = len < sizeof(msg) - 1 ? len : sizeof(msg) - 1;
+        memcpy(msg, data, copyLen);
+        msg[copyLen] = '\0';
+
+        if (strcmp(msg, "ping") == 0) {
           client->text("pong");
-        } else if (msg.startsWith("TURN:")) {
-          currentTurnSignal = msg.substring(5);
-          ws.textAll("TURN:" + currentTurnSignal);
+        } else if (strncmp(msg, "TURN:", 5) == 0) {
+          strncpy(currentTurnSignal, msg + 5, sizeof(currentTurnSignal) - 1);
+          currentTurnSignal[sizeof(currentTurnSignal) - 1] = '\0';
+          char wsMsg[16];
+          snprintf(wsMsg, sizeof(wsMsg), "TURN:%s", currentTurnSignal);
+          ws.textAll(wsMsg);
         }
       }
       break;
@@ -141,12 +155,18 @@ void setup() {
     return;
   }
 
+  // Set WiFi to both AP and STA mode
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(ssid, password);
 
+  // Start SoftAP
+  WiFi.softAP(ssid, password);
+  Serial.println("AP IP address: " + WiFi.softAPIP().toString());
+
+  // Setup WebSocket and server handlers
   ws.onEvent(onWebSocketEvent);
   server.addHandler(&ws);
 
+  // Serve main dashboard HTML (gzipped)
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     if (!LittleFS.exists("/dash.html.gz")) {
       request->send(404, "text/plain", "Dashboard file not found");
@@ -155,6 +175,15 @@ void setup() {
     AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/dash.html.gz", "text/html");
     response->addHeader("Content-Encoding", "gzip");
     request->send(response);
+  });
+
+  // Serve gauges.js
+  server.on("/gauges.js", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (!LittleFS.exists("/gauges.js")) {
+      request->send(404, "text/plain", "gauges.js not found");
+      return;
+    }
+    request->send(LittleFS, "/gauges.js", "application/javascript");
   });
 
   server.begin();
@@ -168,14 +197,35 @@ void loop() {
     sendDashboardData();
   }
 
+  // Handle Serial commands safely
   if (Serial.available()) {
-    String command = Serial.readStringUntil('\n');
-    command.trim();
-    if (command == "left" || command == "right" || command == "hazard" || command == "off") {
-      if (command != currentTurnSignal) {
-        currentTurnSignal = command;
-        ws.textAll("TURN:" + command);
+    char command[16] = {0};
+    size_t idx = 0;
+    while (Serial.available() && idx < sizeof(command) - 1) {
+      char c = Serial.read();
+      if (c == '\n' || c == '\r') break;
+      command[idx++] = c;
+    }
+    command[idx] = '\0';
+
+    // Remove trailing whitespace
+    for (int i = idx - 1; i >= 0; --i) {
+      if (command[i] == ' ' || command[i] == '\t') command[i] = '\0';
+      else break;
+    }
+
+    if (strcmp(command, "left") == 0 || strcmp(command, "right") == 0 ||
+        strcmp(command, "hazard") == 0 || strcmp(command, "off") == 0) {
+      if (strcmp(command, currentTurnSignal) != 0) {
+        strncpy(currentTurnSignal, command, sizeof(currentTurnSignal) - 1);
+        currentTurnSignal[sizeof(currentTurnSignal) - 1] = '\0';
+        char wsMsg[16];
+        snprintf(wsMsg, sizeof(wsMsg), "TURN:%s", currentTurnSignal);
+        ws.textAll(wsMsg);
       }
     }
   }
+
+  // Keep WebSocket alive (ping clients)
+  ws.cleanupClients();
 }
